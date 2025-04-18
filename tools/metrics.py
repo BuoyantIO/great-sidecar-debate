@@ -167,6 +167,7 @@ class AggregateUsage:
     def __init__(self, output_path):
         self.reinit()
         self.state = "STARTING"
+        self.idle = False
         self.collecting = False
         self.field_names = build_field_names()
         self.field_names_set = set(self.field_names)
@@ -190,6 +191,9 @@ class AggregateUsage:
     def is_collecting(self):
         return self.collecting
 
+    def is_idle(self):
+        return self.idle
+
     def start_collecting(self):
         if self.state != "STARTING":
             raise RuntimeError("Cannot start collecting when not in STARTING state")
@@ -207,6 +211,9 @@ class AggregateUsage:
 
         if self.writer:
             self.writer = None
+
+    def start_draining(self):
+        self.state = "DRAINING"
 
     def zero(self):
         if not self.collecting:
@@ -357,12 +364,16 @@ class AggregateUsage:
 
             # Next, figure out if we need to start collecting.
 
-            if (not self.collecting) and (key == "faces"):
+            if key == "faces":
                 # Is the Faces application back down to idle? We want to see it less than
                 # 10 mC and 160 MiB.
 
                 if usage.cpu.current < 100_000_000 and usage.memory.current < (1048576 * 160):
-                    self.start_collecting()
+                    self.idle = True
+                    if not self.collecting:
+                        self.start_collecting()
+                else:
+                    self.idle = False
 
             # Finally, add more to our interactive display if we're doing that.
             if interactive:

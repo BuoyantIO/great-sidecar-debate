@@ -230,10 +230,18 @@ def run(outdir, rps, seq, duration, loadgen, workers, affinity):
             print("...run finished")
             break
 
-    # Collect 6 more samples, since they can lag realtime.
+    # Collect 6 more samples, since they can lag realtime. Stop
+    # early if Faces goes idle again.
     print("...collecting tail metrics")
+    agg.start_draining()
+
     for _ in range(6):
         agg.sample(True)
+
+        if agg.is_idle():
+            print("...idle again, stopping")
+            break
+
         time.sleep(10)
 
     # Stop collecting metrics...
