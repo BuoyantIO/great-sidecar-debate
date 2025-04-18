@@ -27,8 +27,7 @@ if [ $MT_NODES -gt 1 ]; then
   extra_args="$extra_args --set defaultReplicas=$replicas"
 fi
 
-  #  oci://ghcr.io/buoyantio/faces-chart --version 2.0.0-rc.5 \
 helm install faces -n faces \
-   $(dirname $0)/../../faces-demo/faces-chart-2.0.0-rc.5.tgz \
+   oci://ghcr.io/buoyantio/faces-chart --version 2.0.0-rc.7 \
    -f $(dirname $0)/faces-values.yaml $extra_args \
    --wait
