@@ -12,6 +12,7 @@ import numpy as np
 from numpy.polynomial import Polynomial
 
 import crunch_utils
+import argparse
 
 def reddish(saturation):
     return pltcolors.to_hex(
@@ -74,8 +75,8 @@ class MetricsFile:
       for a given percentile (e.g. "P50" or "P95") at a single point in time
 
     In both cases, we parse RPS and mesh from the file path, which always
-    looks like "{mesh}/{rps}-{seq}-metrics.csv" or
-    "{mesh}/{rps}-{seq}-wrk2-{pod}.log".
+    looks like "{mesh}(-\d+)?/{rps}-{seq}-metrics.csv" or
+    "{mesh}(-\d+)?/{rps}-{seq}-wrk2-{pod}.log".
     """
 
     def __init__(self, name, infile):
@@ -393,31 +394,38 @@ class CorrelatedMetrics:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Plot metrics from input files.")
+    parser.add_argument("-i", "--interactive", action="store_true", help="Enable interactive mode (default: off)")
+    parser.add_argument("paths", nargs="+", help="Paths to metrics files")
+
+    args = parser.parse_args()
+
     metrics_files = []
 
-    for path in sys.argv[1:]:
+    for path in args.paths:
         with open(path, 'r') as infile:
             metrics_files.append(MetricsFile(path, infile))
 
     if metrics_files:
         correlated_metrics = CorrelatedMetrics(metrics_files)
 
-        fig = correlated_metrics.plot("Data Plane CPU", "mC",
-                "data-plane CPU", "ztunnel mesh CPU", "waypoint mesh CPU")
-        fig.savefig(f"data-plane-CPU.png")
-        plt.show()
+        dp_cpu_fig = correlated_metrics.plot("Data Plane CPU", "mC",
+                     "data-plane CPU", "ztunnel mesh CPU", "waypoint mesh CPU")
 
-        fig = correlated_metrics.plot("Data Plane Memory", "MiB",
+        if not args.interactive:
+            dp_cpu_fig.savefig(f"data-plane-CPU.png")
+
+        dp_mem_fig = correlated_metrics.plot("Data Plane Memory", "MiB",
                    "data-plane mem", "ztunnel mesh mem", "waypoint mesh mem")
-        fig.savefig(f"data-plane-mem.png")
-        plt.show()
 
-        fig = correlated_metrics.plot("Latency -- LOW CONFIDENCE", "ms",
-                   "P50", "P75", "P90", "P95", "P99")
-        fig.savefig(f"latency.png")
-        plt.show()
+        if not args.interactive:
+            dp_mem_fig.savefig(f"data-plane-mem.png")
 
+        latency_fig = correlated_metrics.plot("Latency -- LOW CONFIDENCE", "ms",
+                      "P50", "P75", "P90", "P95", "P99")
 
+        if not args.interactive:
+            latency_fig.savefig(f"latency.png")
 
-
-
+        if args.interactive:
+            plt.show()
