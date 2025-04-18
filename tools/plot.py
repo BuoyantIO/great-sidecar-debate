@@ -27,6 +27,13 @@ def bluish(saturation):
         )
     )
 
+def greenish(saturation):
+    return pltcolors.to_hex(
+        pltcolors.hsv_to_rgb(
+            (120.0/360.0, saturation, 1.0)
+        )
+    )
+
 PlotKeys = {
     "data-plane CPU": ("data-plane CPU", None),
     "data-plane mem": ("data-plane mem", None),
@@ -46,6 +53,12 @@ PlotKeys = {
     "linkerd P90": ("linkerd P90", bluish(0.6)),
     "linkerd P95": ("linkerd P95", bluish(0.8)),
     "linkerd P99": ("linkerd P99", bluish(1.0)),
+
+    "unmeshed P50": ("unmeshed P50", greenish(0.2)),
+    "unmeshed P75": ("unmeshed P75", greenish(0.4)),
+    "unmeshed P90": ("unmeshed P90", greenish(0.6)),
+    "unmeshed P95": ("unmeshed P95", greenish(0.8)),
+    "unmeshed P99": ("unmeshed P99", greenish(1.0)),
 }
 
 
