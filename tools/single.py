@@ -230,6 +230,12 @@ def run(outdir, rps, seq, duration, loadgen, workers, affinity):
             print("...run finished")
             break
 
+    # Collect 6 more samples, since they can lag realtime.
+    print("...collecting tail metrics")
+    for _ in range(6):
+        agg.sample(True)
+        time.sleep(10)
+
     # Stop collecting metrics...
     agg.stop_collecting()
 
