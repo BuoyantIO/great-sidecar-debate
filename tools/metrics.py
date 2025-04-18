@@ -340,7 +340,7 @@ class AggregateUsage:
         if interactive:
             # Clear the screen and print the header before anything else.
             print(clear(), end="")
-            print(f"{formatted_now} {self.state}\n--------\n")
+            print(f"{formatted_now} {self.state} {self.output_path}\n--------\n")
 
         last_type = None
 
