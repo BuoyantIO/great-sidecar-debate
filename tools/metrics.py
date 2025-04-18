@@ -11,7 +11,7 @@ from kubernetes import client, config
 
 
 def clear():
-    print("\033[H\033[J", end="")
+    return "\033[H\033[J"
 
 
 def build_field_names():
@@ -167,8 +167,9 @@ class AggregateUsage:
     def __init__(self, output_path):
         self.reinit()
         self.state = "STARTING"
-        self.initialized = False
-        self.field_names = set(build_field_names())
+        self.collecting = False
+        self.field_names = build_field_names()
+        self.field_names_set = set(self.field_names)
 
         self.classifier = kube_utils.Classifier()
 
@@ -186,8 +187,29 @@ class AggregateUsage:
         self.usages = {}
         self.pod_usages = {}
 
+    def is_collecting(self):
+        return self.collecting
+
+    def start_collecting(self):
+        if self.state != "STARTING":
+            raise RuntimeError("Cannot start collecting when not in STARTING state")
+
+        self.collecting = True
+        self.state = "RUNNING"
+
+    def stop_collecting(self):
+        self.collecting = False
+        self.state = "FINISHING"
+
+        if self.csv_output:
+            self.csv_output.close()
+            self.csv_output = None
+
+        if self.writer:
+            self.writer = None
+
     def zero(self):
-        if not self.initialized:
+        if not self.collecting:
             self.reinit()
 
         for type in self.usages.keys():
@@ -288,7 +310,7 @@ class AggregateUsage:
 
         return (cpu_str, memory_str)
 
-    def sample(self):
+    def sample(self, interactive=False):
         """
         Grab a sample of current resource usage, and update all our various fields
         from it.
@@ -312,62 +334,61 @@ class AggregateUsage:
 
         self.update()
 
-        return now
-
-    def display(self, now):
         formatted_now = now.strftime("%Y-%m-%d %H:%M:%S")
         csv_row = { "timestamp": formatted_now }
 
-        clear()
-
-        print(f"{formatted_now} {self.state}\n--------\n")
+        if interactive:
+            # Clear the screen and print the header before anything else.
+            print(clear(), end="")
+            print(f"{formatted_now} {self.state}\n--------\n")
 
         last_type = None
 
         for type, key, usage in self.items():
-            if not key:
-                print("")
-                continue
+            # First, save to the CSV row.
+            cpu_key = key + " CPU"
+            mem_key = key + " mem"
 
-            if type != last_type:
-                # print(f"{type.capitalize()}:")
-                last_type = type
+            if cpu_key in self.field_names_set:
+                csv_row[cpu_key] = int(usage.cpu.current)
 
-                if (type == "pod") and "mesh" in self.usages:
-                    cpu_ratio, memory_ratio = self.ratio("synth", "mesh", "synth", "non-mesh")
+            if mem_key in self.field_names_set:
+                csv_row[mem_key] = int(usage.memory.current)
 
-                    print(f"Mesh CPU ratio:          {cpu_ratio:8s} (smaller is better)")
-                    print(f"Mesh memory ratio:       {memory_ratio:8s} (smaller is better)")
+            # Next, figure out if we need to start collecting.
 
-                    cpu_ratio, memory_ratio = self.ratio("mesh", "data-plane", "synth", "non-mesh")
-
-                    print(f"\nData plane CPU ratio:    {cpu_ratio:8s} (smaller is better)")
-                    print(f"Data plane memory ratio: {memory_ratio:8s} (smaller is better)")
-
-                    print("")
-
-            print(f"{key:36s} {usage}")
-
-            if key == "faces":
+            if (not self.collecting) and (key == "faces"):
                 # Is the Faces application back down to idle? We want to see it less than
                 # 10 mC and 160 MiB.
 
                 if usage.cpu.current < 100_000_000 and usage.memory.current < (1048576 * 160):
-                    self.initialized = True
+                    self.start_collecting()
 
-            cpu_key = key + " CPU"
-            mem_key = key + " mem"
+            # Finally, add more to our interactive display if we're doing that.
+            if interactive:
+                if not key:
+                    print("")
+                    continue
 
-            if cpu_key in self.field_names:
-                csv_row[cpu_key] = int(usage.cpu.current)
+                if type != last_type:
+                    last_type = type
 
-            if mem_key in self.field_names:
-                csv_row[mem_key] = int(usage.memory.current)
+                    if (type == "pod") and "mesh" in self.usages:
+                        cpu_ratio, memory_ratio = self.ratio("synth", "mesh", "synth", "non-mesh")
 
-        if self.initialized:
-            if self.state == "STARTING":
-                self.state = "RUNNING"
+                        print(f"Mesh CPU ratio:          {cpu_ratio:8s} (smaller is better)")
+                        print(f"Mesh memory ratio:       {memory_ratio:8s} (smaller is better)")
 
+                        cpu_ratio, memory_ratio = self.ratio("mesh", "data-plane", "synth", "non-mesh")
+
+                        print(f"\nData plane CPU ratio:    {cpu_ratio:8s} (smaller is better)")
+                        print(f"Data plane memory ratio: {memory_ratio:8s} (smaller is better)")
+
+                        print("")
+
+                print(f"{key:36s} {usage}")
+
+        if self.collecting:
             if self.writer:
                 self.writer.writerow(csv_row)
                 self.csv_output.flush()
@@ -379,8 +400,7 @@ def main():
     agg = AggregateUsage(sys.argv[1])
 
     while True:
-        now = agg.sample()
-        agg.display(now)
+        agg.sample(True)
         time.sleep(10)
 
 

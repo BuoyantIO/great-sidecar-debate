@@ -48,7 +48,29 @@ class JobManager:
         try:
             self.batch_v1.delete_namespaced_job(name=self.name, namespace=self.namespace, propagation_policy="Foreground")
             print("Deleted existing job")
-            time.sleep(5)
+
+            # Wait for job to vanish
+            left = 10
+            while left > 0:
+                print(f"...waiting for {self.name} to be deleted... ({left})")
+                time.sleep(10)
+                left -= 1
+
+                some = True
+
+                try:
+                    self.batch_v1.read_namespaced_job(name=self.name, namespace=self.namespace)
+                except client.exceptions.ApiException as e:
+                    if e.status == 404:
+                        some = False
+                        break
+                    raise
+
+                if not some:
+                    break
+
+            if left == 0:
+                raise RuntimeError(f"{self.name} did not delete")
         except client.exceptions.ApiException as e:
             if e.status != 404:
                 raise
@@ -185,27 +207,31 @@ def run(outdir, rps, seq, duration, loadgen, workers, affinity):
 
     print(f"Starting {outdir} {rps}-{seq}... ({duration}, worker count {workers})")
 
+    # Grab samples until we see that the application has idled...
+
+    while True:
+        agg.sample(True)
+        time.sleep(10)
+
+        # Check if the aggregator has started collecting...
+        if agg.is_collecting():
+            print("...started collecting")
+            break
+
     # Create job
     job_manager.create_job(rps, duration, workers, affinity)
 
     # Grab samples until our job is finished...
     while True:
-        now = agg.sample()
-        agg.display(now)
+        agg.sample(True)
         time.sleep(10)
 
         if job_manager.check_job(workers):
             print("...run finished")
             break
 
-    # Collect for another bit longer to see a bit of tailing off...
-    print("...collecting for another 60 seconds...")
-    agg.state = "FINISHING"
-
-    for _ in range(6):
-        now = agg.sample()
-        agg.display(now)
-        time.sleep(10)
+    # Stop collecting metrics...
+    agg.stop_collecting()
 
     # Collect logs
     job_manager.collect_logs(outdir, rps, seq)
