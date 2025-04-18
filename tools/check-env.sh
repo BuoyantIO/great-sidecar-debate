@@ -19,3 +19,8 @@ if [ \( "$MT_PROFILE" != "ha" \) -a \( "$MT_PROFILE" != "dev" \) ]; then
     echo "MT_PROFILE must be either 'ha' or 'dev'."
     exit 1
 fi
+
+if [ -z "$MT_PLATFORM" ]; then
+    echo "MT_PLATFORM is not set. Please set it to the platform you are using."
+    exit 1
+fi

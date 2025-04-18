@@ -1,29 +1,22 @@
 #!/bin/sh
 
-CLUSTER_NAME="$1"
-NODES="$2"
+root=$(dirname $0)
+. "$root/check-env.sh"
 
-if [ -z "$CLUSTER_NAME" -o -z "$NODES" ]; then
-  echo "Usage: $(basename $0) <cluster-name> <nodes>" >&2
-  exit 1
-fi
-
-if [ $NODES -lt 1 ]; then
-    echo "Node count must be at least 1" >&2
-    exit 1
-fi
+export KUBECONFIG=$HOME/.kube/${MT_CLUSTER}.yaml
 
 if [ -z "$GKE_PROJECT" -o -z "$GKE_ZONE" ]; then
   echo "Set GKE_PROJECT to your GKE project ID; set GKE_ZONE to your GKE zone" >&2
   exit 1
 fi
 
-export KUBECONFIG=$HOME/.kube/${CLUSTER_NAME}.yaml
+# Use e2-standard-4 unless MT_GKE_MACHINE overrides it.
+MACHINE="${MT_GKE_MACHINE:-e2-standard-4}"
 
-# MACHINE="e2-highcpu-4"
-MACHINE="e2-standard-8"
+set -e -u
+set -o pipefail
 
-gcloud beta container clusters create "$CLUSTER_NAME" \
+gcloud beta container clusters create "$MT_CLUSTER" \
     --project "$GKE_PROJECT" \
     --zone "$GKE_ZONE" \
     --tier "standard" \
@@ -38,7 +31,7 @@ gcloud beta container clusters create "$CLUSTER_NAME" \
     --scopes "https://www.googleapis.com/auth/devstorage.read_only","https://www.googleapis.com/auth/logging.write","https://www.googleapis.com/auth/monitoring","https://www.googleapis.com/auth/servicecontrol","https://www.googleapis.com/auth/service.management.readonly","https://www.googleapis.com/auth/trace.append" \
     --max-pods-per-node "110" \
     --spot \
-    --num-nodes "$NODES" \
+    --num-nodes "$MT_NODES" \
     --logging=SYSTEM,WORKLOAD \
     --monitoring=SYSTEM,STORAGE,POD,DEPLOYMENT,STATEFULSET,DAEMONSET,HPA,CADVISOR,KUBELET \
     --enable-ip-alias \
@@ -66,3 +59,29 @@ gcloud beta container clusters create "$CLUSTER_NAME" \
     --shielded-integrity-monitoring \
     --no-shielded-secure-boot \
     --node-locations "northamerica-northeast1-a"
+
+if [ $MT_NODES -gt 1 ]; then
+  # Label the k3d agents for the Faces app.
+  i=0
+
+  app_nodes=$MT_NODES
+  load_nodes=0
+
+  if [ $app_nodes -gt 3 ]; then
+    app_nodes=3
+  fi
+
+  load_nodes=$(( $MT_NODES - $app_nodes ))
+
+  for node in $(kubectl get nodes -o name); do
+    if [ $i -lt $app_nodes ]; then
+      echo "Labeling $node as app"
+      kubectl label $node buoyant.io/meshtest-role=app
+    else
+      echo "Labeling $node as load"
+      kubectl label $node buoyant.io/meshtest-role=load
+    fi
+
+    i=$(( $i + 1 ))
+  done
+fi

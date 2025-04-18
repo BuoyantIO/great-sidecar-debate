@@ -8,6 +8,15 @@ set -o pipefail
 
 export KUBECONFIG=$HOME/.kube/${MT_CLUSTER}.yaml
 
+if ! command -v linkerd &> /dev/null; then
+  echo "linkerd could not be found. Please ensure it is installed and added to your PATH."
+  exit 1
+fi
+
+EXTRA_ARGS="$@"
+
+# EXTRA_ARGS that you might play with: probably none, honestly.
+
 if [ -z "$MT_SERVICECIDR" ]; then
   # What kind of cluster is this?
   node=$(kubectl get node -o jsonpath='{ .items[0].metadata.name }')
@@ -36,7 +45,7 @@ if [ -z "$MT_SERVICECIDR" ]; then
 
     MT_SERVICECIDR=$(gcloud container clusters describe $ctx \
                         --project "$GKE_PROJECT" \
-                        --zone "$ZONE" \
+                        --zone "$GKE_ZONE" \
                         --format 'value(servicesIpv4Cidr)')
   fi
 fi
@@ -70,6 +79,8 @@ extra_args=""
 if [ "$MT_PROFILE" == "ha" ]; then
   extra_args="--ha"
 fi
+
+set -x
 
 linkerd install --crds $extra_args --set installGatewayAPI=false | kubectl apply -f -
 linkerd install $extra_args --set clusterNetworks="$ClusterNetworks" | kubectl apply -f -
