@@ -1,0 +1,32 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wrk2
+  namespace: faces
+  labels:
+    buoyant.io/application: faces
+    faces.buoyant.io/component: wrk2
+spec:
+  # completions and parallelism can be added at runtime
+  template:
+    metadata:
+      labels:
+        buoyant.io/application: faces
+        faces.buoyant.io/component: wrk2
+    spec:
+      # Affinity can be added at runtime
+      restartPolicy: Never
+      containers:
+      - name: wrk2
+        image: gildas/wrk2:latest
+        imagePullPolicy: IfNotPresent
+        command: [
+          "set-at-runtime"
+        ]
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            memory: 128Mi

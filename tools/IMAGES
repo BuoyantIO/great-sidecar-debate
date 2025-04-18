@@ -1,0 +1,10 @@
+cr.l5d.io/linkerd/controller:edge-25.4.1
+cr.l5d.io/linkerd/policy-controller:edge-25.4.1
+cr.l5d.io/linkerd/proxy-init:v2.4.2
+cr.l5d.io/linkerd/proxy:edge-25.4.1
+ghcr.io/buoyantio/faces-smiley:2.0.0-rc.5
+ghcr.io/buoyantio/faces-color:2.0.0-rc.5
+ghcr.io/buoyantio/faces-gui:2.0.0-rc.5
+ghcr.io/buoyantio/faces-face:2.0.0-rc.5
+ghcr.io/buoyantio/faces-load:2.0.0-rc.5
+gildas/wrk2:latest
