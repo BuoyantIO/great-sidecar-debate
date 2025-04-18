@@ -211,12 +211,13 @@ def run(outdir, rps, seq, duration, loadgen, workers, affinity):
 
     while True:
         agg.sample(True)
-        time.sleep(10)
 
         # Check if the aggregator has started collecting...
         if agg.is_collecting():
             print("...started collecting")
             break
+
+        time.sleep(10)
 
     # Create job
     job_manager.create_job(rps, duration, workers, affinity)
