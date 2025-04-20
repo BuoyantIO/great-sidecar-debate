@@ -14,8 +14,14 @@ def clear():
     return "\033[H\033[J"
 
 
-def build_field_names():
+def build_field_names(nodes):
     field_names = [ "timestamp" ]
+
+    for node in nodes.values():
+        field_names.append(f"{node.name} CPU")
+        field_names.append(f"{node.name} allocatable CPU")
+        field_names.append(f"{node.name} mem")
+        field_names.append(f"{node.name} allocatable mem")
 
     for element in [ "faces", "load", "iperf", "gke", "k8s",
                      "data-plane", "control-plane", "mesh", "non-mesh",
@@ -39,10 +45,15 @@ def build_field_names():
     return field_names
 
 
-def get_pod_metrics(client):
-    metrics_api = client.CustomObjectsApi()
-
+def get_pod_metrics(v1, metrics_api):
     metrics = []
+
+    pod_info = v1.list_pod_for_all_namespaces(watch=False).items
+
+    node_map = {
+        pod_info[i].metadata.name: pod_info[i].spec.node_name
+        for i in range(len(pod_info))
+    }
 
     pod_metrics = metrics_api.list_cluster_custom_object('metrics.k8s.io', 'v1beta1', 'pods')
 
@@ -59,6 +70,7 @@ def get_pod_metrics(client):
             metrics.append({
                 "pod_id": pod_id,
                 "pod": pod_name,
+                "node": node_map.get(pod_name, "unknown"),
                 "container": container["name"],
                 "namespace": pod_namespace,
                 "usage": {
@@ -163,13 +175,61 @@ class Usage:
         return "%5d mC (%5d - %5d), %4d MiB (%4d - %4d)" % (cpu_cur, cpu_min, cpu_max, memory_cur, memory_min, memory_max)
 
 
-class AggregateUsage:
-    def __init__(self, output_path):
+class Node:
+    def __init__(self, node_info):
+        self.name = node_info.metadata.name
+        self.allocatable_cpu = kube_utils.nanocores(node_info.status.allocatable["cpu"])
+        self.allocatable_memory = kube_utils.bytes(node_info.status.allocatable["memory"])
         self.reinit()
+
+    def reinit(self):
+        self.assigned = Usage()
+
+    def zero(self):
+        self.assigned.zero()
+
+    def add(self, resource):
+        self.assigned.add(resource["cpu"], resource["memory"])
+
+    def update(self):
+        self.assigned.update()
+
+    def shortname(self, maxlen=8):
+        """
+        Return a short name for the node, truncated to maxlen characters.
+        """
+        if len(self.name) <= maxlen:
+            return self.name
+
+        return "..." + self.name[-(maxlen - 3):]
+
+    def __str__(self):
+        cpu_ratio = self.assigned.cpu.current / self.allocatable_cpu
+        memory_ratio = self.assigned.memory.current / self.allocatable_memory
+
+        return f"{cpu_ratio:6.2%} CPU, {memory_ratio:6.2%} mem: {self.assigned}"
+
+
+def get_nodes(v1):
+    nodes = {}
+
+    for node_info in v1.list_node().items:
+        node = Node(node_info)
+        nodes[node.name] = node
+
+    return nodes
+
+
+class AggregateUsage:
+    def __init__(self, client, output_path):
+        self.metrics_api = client.CustomObjectsApi()
+        self.v1 = client.CoreV1Api()
+        self.nodes = get_nodes(self.v1)
+
         self.state = "STARTING"
         self.idle = False
         self.collecting = False
-        self.field_names = build_field_names()
+        self.field_names = build_field_names(self.nodes)
         self.field_names_set = set(self.field_names)
 
         self.classifier = kube_utils.Classifier()
@@ -183,6 +243,8 @@ class AggregateUsage:
 
             self.writer = csv.DictWriter(self.csv_output, fieldnames=self.field_names)
             self.writer.writeheader()
+
+        self.reinit()
 
     def reinit(self):
         self.usages = {}
@@ -219,9 +281,16 @@ class AggregateUsage:
         if not self.collecting:
             self.reinit()
 
+            for node in self.nodes.values():
+                node.reinit()
+
         for type in self.usages.keys():
             for usage in self.usages[type].values():
                 usage.zero()
+
+        # Zero node assignments for a new sample
+        for node in self.nodes.values():
+            node.zero()
 
     def _add(self, type, key, cpu, memory):
         if type not in self.usages:
@@ -264,6 +333,9 @@ class AggregateUsage:
         for type in self.usages.keys():
             for usage in self.usages[type].values():
                 usage.update()
+
+        for node in self.nodes.values():
+            node.update()
 
     def items(self):
         for type in [ "normal", "", "overhead", "", "mesh" ]:
@@ -324,7 +396,7 @@ class AggregateUsage:
         """
         now = datetime.datetime.now()
 
-        metrics = get_pod_metrics(client)
+        metrics = get_pod_metrics(self.v1, self.metrics_api)
 
         # This will continuously reinitialize the AggregateUsage object
         # until we explicitly mark it as ready to go.
@@ -334,6 +406,13 @@ class AggregateUsage:
             pod_id = metric["pod_id"]
             namespace = metric["namespace"]
             container = metric["container"]
+            node = metric["node"]
+            node_info = self.nodes.get(node)
+
+            if node_info:
+                node_info.add(metric["usage"])
+            else:
+                raise RuntimeError(f"WARNING: pod {pod_id} in {namespace} on unknown node {node}")
 
             classification = self.classifier.lookup(pod_id, container, namespace)
 
@@ -344,10 +423,21 @@ class AggregateUsage:
         formatted_now = now.strftime("%Y-%m-%d %H:%M:%S")
         csv_row = { "timestamp": formatted_now }
 
+        for node in self.nodes.values():
+            csv_row[f"{node.name} CPU"] = node.assigned.cpu.current
+            csv_row[f"{node.name} allocatable CPU"] = node.allocatable_cpu
+            csv_row[f"{node.name} mem"] = node.assigned.memory.current
+            csv_row[f"{node.name} allocatable mem"] = node.allocatable_memory
+
         if interactive:
             # Clear the screen and print the header before anything else.
             print(clear(), end="")
             print(f"{formatted_now} {self.state} {self.output_path}\n--------\n")
+
+            for node in self.nodes.values():
+                print(f"Node {node.shortname(15):15s} {node}")
+
+            print("")
 
         last_type = None
 
@@ -397,7 +487,7 @@ class AggregateUsage:
 
                         print("")
 
-                print(f"{key:36s} {usage}")
+                print(f"{key:44s} {usage}")
 
         if self.collecting:
             if self.writer:
@@ -408,7 +498,7 @@ class AggregateUsage:
 def main():
     config.load_kube_config()
 
-    agg = AggregateUsage(sys.argv[1])
+    agg = AggregateUsage(client, sys.argv[1])
 
     while True:
         agg.sample(True)

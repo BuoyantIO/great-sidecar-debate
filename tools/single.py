@@ -200,7 +200,7 @@ def run(outdir, rps, seq, duration, loadgen, workers, affinity):
 
     outfile = os.path.join(outdir, f"{rps}-{seq}-metrics.csv")
 
-    agg = AggregateUsage(outfile)
+    agg = AggregateUsage(client, outfile)
 
     # Delete existing job
     job_manager.delete_job()
