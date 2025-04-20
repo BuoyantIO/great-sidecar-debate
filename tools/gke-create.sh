@@ -21,7 +21,7 @@ gcloud beta container clusters create "$MT_CLUSTER" \
     --zone "$GKE_ZONE" \
     --tier "standard" \
     --no-enable-basic-auth \
-    --cluster-version "1.31.6-gke.1020000" \
+    --cluster-version "1.31.6-gke.1064001" \
     --release-channel "regular" \
     --machine-type "$MACHINE" \
     --image-type "COS_CONTAINERD" \
