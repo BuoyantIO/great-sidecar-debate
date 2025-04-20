@@ -86,16 +86,19 @@ class MinMax:
 
     def add(self, value):
         '''
-        Add to the current value, without affecting the min and max. The intention
-        here is that you can call add() as many times as needed to accumulate data,
-        then call update() once to fix the min and max.
+        Add to the current value, without affecting the min and max. What's going on
+        here is that since we're building up our values piecemeal, we can't know when
+        the buildup is done without an external signal to tell us that it's OK to
+        update the min & max.
         '''
         self.current += value
 
     def update(self):
         '''
-        Update the min & max. The idea here is that you can call add() as many times
-        as needed to accumulate data, then call update() once to fix the min and max.
+        Update the min & max. What's going on here is that since we're
+        building up our values piecemeal, we can't know when the buildup is
+        done without an external signal to tell us that it's OK to update the
+        min & max.
         '''
         if self.min is None:
             self.min = self.current
