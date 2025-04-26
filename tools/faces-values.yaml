@@ -3,9 +3,11 @@ gui:
 
 face:
    errorFraction: 0
+   delayBuckets: "0"
 
 backend:
    errorFraction: 0
+   delayBuckets: "0"
 
 smiley2:
    enabled: true
