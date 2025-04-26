@@ -1,6 +1,7 @@
 import sys
 
 import csv
+import json
 import re
 
 from collections import defaultdict
@@ -69,14 +70,18 @@ class MetricsFile:
         self.name = name
         self.data = {}  # Keys are field names for metrics, "P50", "P95", etc. for latencies
 
-        if "metrics" in name:
+        if "-metrics" in name:
             # This is a Usage file.
             self.mesh, self.rps, self.seq = crunch_utils.parse_filename(self.name, "metrics.csv")
             self.parse_metrics(infile)
-        elif "wrk2" in name:
-            # This is a Latency file.
+        elif "-wrk2-" in name:
+            # This is a wrk2 Latency file.
             self.mesh, self.rps, self.seq = crunch_utils.parse_filename(self.name, "wrk2(-[a-z0-9]{5}?).log")
-            self.parse_latencies(infile)
+            self.parse_wrk2_latencies(infile)
+        elif "-oha-" in name:
+            # This is a wrk2 Latency file.
+            self.mesh, self.rps, self.seq = crunch_utils.parse_filename(self.name, "oha(-[a-z0-9]{5}?).log")
+            self.parse_oha_latencies(infile)
         else:
             raise Exception(f"Unrecognized file name {name}")
 
@@ -112,9 +117,9 @@ class MetricsFile:
 
                     self.data[fieldname].append(value)
 
-    def parse_latencies(self, infile):
+    def parse_wrk2_latencies(self, infile):
         """
-        Parse a Latency file, which is contains a list of latencies for a
+        Parse a wrk2 Latency file, which contains a list of latencies for a
         given percentile (e.g. "P50" or "P95") at a single point in time. We
         end up with a dictionary where the keys are percentile names (e.g.
         "P50", "P95") and the values are single-element lists of the latencies
@@ -165,6 +170,40 @@ class MetricsFile:
 
                     if key:
                         self.data[key] = [latency]
+
+        for bucket, latency in self.data.items():
+            if not latency:
+                raise Exception(f"No {bucket} found in {self.name}")
+
+    def parse_oha_latencies(self, infile):
+        """
+        Parse an oha Latency file, which is JSON (but with single quotes
+        instead of double quotes, sigh). The really interesting bits are in
+        the "latencyPercentiles" section, which a dict with keys of "p50",
+        "p75", etc. and values that are the latencies for those percentiles.
+        We end up with a dictionary where the keys are percentile names,
+        uppercased (e.g. "P50", "P95") and the values are single-element lists
+        of the latencies.
+
+        We use a single-element list rather than a scalar just for parallelism
+        between the Usage files and the Latency files.
+        """
+        self.kind = "Latency"
+        self.fieldnames = [ "P50", "P75", "P90", "P95", "P99" ]
+
+        # Oha's take on JSON is... uh... kinda broken.
+        oha_text = infile.read().replace("'", "\"").replace("None", "null")
+
+        try:
+            oha_data = json.loads(oha_text)
+        except json.JSONDecodeError as e:
+            raise Exception(f"Failed to parse JSON in {self.name}: {e}")
+
+        for bucket, latency in oha_data["latencyPercentiles"].items():
+            bucket = bucket.upper()
+
+            if bucket in self.fieldnames:
+                self.data[bucket] = [latency * 1000.0]
 
         for bucket, latency in self.data.items():
             if not latency:
