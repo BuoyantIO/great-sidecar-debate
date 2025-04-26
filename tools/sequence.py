@@ -10,6 +10,8 @@ parser.add_argument("--duration", type=str, default="1800s",
                     help="Duration of test (default: 1800s)")
 parser.add_argument("--workers", type=int, default=1,
                     help="Number of workers (default: 1)")
+parser.add_argument("--connections", type=int, default=200,
+                    help="Connections to maintain (default: 200)")
 parser.add_argument("--loadgen", type=str, default="oha",
                     help="Load generator (default: oha)")
 parser.add_argument("--affinity", action="store_true",
@@ -37,7 +39,8 @@ for loop in range(args.loops):
             outdir = os.path.join(args.outdir, f"{args.mesh}-{loop:02d}")
 
             print(f"Running {args.loadgen} test {loop:02d} for {rps} RPS, sequence {seq}, outdir {outdir}...")
-            run(outdir, rps, seq, args.duration, args.loadgen, args.workers, args.affinity)
+            run(outdir, rps, seq, args.duration, args.loadgen,
+                args.workers, args.connections, args.affinity)
 
 
 

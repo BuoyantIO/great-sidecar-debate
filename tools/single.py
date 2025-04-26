@@ -76,16 +76,16 @@ class JobManager:
                 raise
             print("No existing job to delete")
 
-    def create_job(self, rps, duration, workers, affinity):
+    def create_job(self, rps, duration, workers, connections, affinity):
         podrps = int(rps) // workers
         print(f"...starting {self.name} ({rps} RPS, {duration}, {workers} workers, {podrps} per pod)")
 
         job = None
 
         if self.name == "wrk2":
-            job = self.prep_wrk2_job(podrps, duration)
+            job = self.prep_wrk2_job(podrps, duration, connections)
         elif self.name == "oha":
-            job = self.prep_oha_job(podrps, duration)
+            job = self.prep_oha_job(podrps, duration, connections)
         else:
             raise ValueError(f"Unknown job name: {self.name}")
 
@@ -125,7 +125,7 @@ class JobManager:
 
         print(f"...{self.name} running")
 
-    def prep_wrk2_job(self, podrps, duration):
+    def prep_wrk2_job(self, podrps, duration, connections):
         # Customize the Job spec as needed
         job = self.base_job.copy()
         job_template_spec = job["spec"]["template"]["spec"]
@@ -133,7 +133,7 @@ class JobManager:
         job_template_spec["containers"][0]["command"] = [
             "/wrk",
             "-t", "8",
-            "-c", "200",
+            "-c", str(connections),
             "-d", str(duration),
             "-R", str(podrps),
             "--latency",
@@ -142,14 +142,14 @@ class JobManager:
 
         return job
 
-    def prep_oha_job(self, podrps, duration):
+    def prep_oha_job(self, podrps, duration, connections):
         # Customize the Job spec as needed
         job = self.base_job.copy()
         job_template_spec = job["spec"]["template"]["spec"]
 
         job_template_spec["containers"][0]["command"] = [
             "/bin/oha",
-            "-c", "200",
+            "-c", str(connections),
             "-z", str(duration),
             "-q", str(podrps),
             "--latency-correction",
@@ -184,7 +184,7 @@ class JobManager:
                 f.write(log)
 
 
-def run(outdir, rps, seq, duration, loadgen, workers, affinity):
+def run(outdir, rps, seq, duration, loadgen, workers, connections, affinity):
     config.load_kube_config()
     core_v1 = client.CoreV1Api()
     batch_v1 = client.BatchV1Api()
@@ -220,7 +220,7 @@ def run(outdir, rps, seq, duration, loadgen, workers, affinity):
         time.sleep(10)
 
     # Create job
-    job_manager.create_job(rps, duration, workers, affinity)
+    job_manager.create_job(rps, duration, workers, connections, affinity)
 
     # Grab samples until our job is finished...
     while True:
@@ -264,10 +264,11 @@ if __name__ == "__main__":
     parser.add_argument("--affinity", action="store_true", help="Enable CPU affinity")
     parser.add_argument("--outdir", type=str, default=".", help="Output directory (default: current directory)")
     parser.add_argument("--loadgen", type=str, default="oha", help="Load generator (default: oha)")
+    parser.add_argument("--connections", type=int, default=200, help="Connections to maintain (default: 200)")
     parser.add_argument("rps", type=int, help="Requests per second")
     parser.add_argument("seq", type=int, help="Sequence number")
 
     args = parser.parse_args()
 
     run(args.outdir, args.rps, args.seq, args.duration,
-        args.loadgen, args.workers, args.affinity)
+        args.loadgen, args.workers, args.connections, args.affinity)
