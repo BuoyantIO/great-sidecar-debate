@@ -3,6 +3,7 @@ special_ids = [
     "kube-proxy",
     "collector",
     "ztunnel",
+    "oha",
     "wrk2",
 ]
 
@@ -165,8 +166,8 @@ class Classifier:
         elif (prefix == "iperf") or (prefix == "iperf-client"):
             # The iperf and iperf-client containers are not part of the mesh.
             classification = Classification.iperf(prefix)
-        elif (prefix == "load") or (prefix == "wrk2"):
-            # The load and wrk2 containers are load generators.
+        elif (prefix == "load") or (prefix == "wrk2") or (prefix == "oha"):
+            # The load, wrk2, and oha containers are load generators.
             classification = Classification.load(prefix)
         elif namespace == "faces":
             # Other things in the faces namespace are part of Faces.

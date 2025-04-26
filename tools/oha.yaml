@@ -1,0 +1,32 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oha
+  namespace: faces
+  labels:
+    buoyant.io/application: faces
+    faces.buoyant.io/component: oha
+spec:
+  # completions and parallelism can be added at runtime
+  template:
+    metadata:
+      labels:
+        buoyant.io/application: faces
+        faces.buoyant.io/component: oha
+    spec:
+      # Affinity can be added at runtime
+      restartPolicy: Never
+      containers:
+      - name: oha
+        image: ahmadalsajid/oha-docker:latest
+        imagePullPolicy: IfNotPresent
+        command: [
+          "set-at-runtime"
+        ]
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          # limits:
+          #   memory: 128Mi
