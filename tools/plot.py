@@ -97,6 +97,12 @@ class MetricsFile:
         elif "-oha-" in name:
             # This is an oha Latency file.
             self.parse_oha_latencies(infile)
+        elif name.endswith("-wrk2.log"):
+            # Old-style wrk2 Latency file. Fix up the name to match
+            # the new style...
+            self.name = name.replace("-wrk2.log", "-wrk2-xxxxx.log")
+            # ...and parse it.
+            self.parse_wrk2_latencies(infile)
         else:
             raise Exception(f"Unrecognized file name {name}")
 
@@ -497,6 +503,10 @@ if __name__ == "__main__":
     metrics_files = []
 
     for path in args.paths:
+        if "ERROR" in path:
+            print(f"Skipping {path} because it contains ERROR")
+            continue
+
         with open(path, 'r') as infile:
             metrics_files.append(MetricsFile(path, infile))
 
