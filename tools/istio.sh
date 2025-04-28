@@ -11,7 +11,9 @@ if ! command -v istioctl &> /dev/null; then
   exit 1
 fi
 
-EXTRA_ARGS="$@"
+# We definitely need native sidecars for Istio legacy, since we use a
+# Job as a load generator.
+EXTRA_ARGS="--set values.pilot.env.ENABLE_NATIVE_SIDECARS=true $@"
 
 # EXTRA_ARGS that you might play with:
 # --set values.global.waypoint.resources.limits.cpu
