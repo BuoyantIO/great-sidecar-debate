@@ -396,6 +396,7 @@ class CorrelatedMetrics:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Plot metrics from input files.")
     parser.add_argument("-i", "--interactive", action="store_true", help="Enable interactive mode (default: off)")
+    parser.add_argument("-l", "--latency", action="store_true", help="Enable latency plot (default: off)")
     parser.add_argument("paths", nargs="+", help="Paths to metrics files")
 
     args = parser.parse_args()
@@ -421,11 +422,14 @@ if __name__ == "__main__":
         if not args.interactive:
             dp_mem_fig.savefig(f"data-plane-mem.png")
 
-        latency_fig = correlated_metrics.plot("Latency -- LOW CONFIDENCE", "ms",
-                      "P50", "P75", "P90", "P95", "P99")
+        if args.latency:
+            latency_fig = correlated_metrics.plot(
+                "Latency -- LOW CONFIDENCE", "ms",
+                "P50", "P75", "P90", "P95", "P99"
+            )
 
-        if not args.interactive:
-            latency_fig.savefig(f"latency.png")
+            if not args.interactive:
+                latency_fig.savefig(f"latency.png")
 
         if args.interactive:
             plt.show()
