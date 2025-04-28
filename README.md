@@ -73,10 +73,21 @@ version of this code that was _dramatically_ clumsier to run. This version is
 much simpler for others to use, but the actual way in which the tests are
 executed and the metrics are handled is the same code.
 
-You can find graphs in `V1/Graphs`, and the raw metrics data in `V1/Data`.
+You can find graphs in `V1/Graphs`, and the raw metrics data in `V1/Data`. There are three directories in `V1/Data`:
+
+- `ambient` contains the raw metrics data for an Istio Ambient sequence
+- `linkerd` contains the raw metrics data for a Linkerd sequence
+- `linkerd-2` contains the raw metrics data for another Linkerd sequence
+
+The graphs committed here were generated with
+
+```
+python tools/plot.py V1/Data/{ambient,linkerd}/*.{csv,log}
+```
+
 Since V1 was using the same setup and collection mechanism, **it was also not
-designed for really reliable latency numbers**. That's why there's no latency
-graph committed here.
+designed for really reliable latency numbers**. That's why there is no latency
+graph in this repo.
 
 The V1 test setup was:
 
