@@ -21,6 +21,13 @@ def reddish(saturation):
         )
     )
 
+def purplish(saturation):
+    return pltcolors.to_hex(
+        pltcolors.hsv_to_rgb(
+            (270.0/360.0, saturation, 1.0)
+        )
+    )
+
 def bluish(saturation):
     return pltcolors.to_hex(
         pltcolors.hsv_to_rgb(
@@ -42,6 +49,14 @@ PlotKeys = {
     "ztunnel mesh mem": ("ztunnel mem", "xkcd:salmon"),
     "waypoint mesh CPU": ("waypoint CPU", "xkcd:dark pink"),
     "waypoint mesh mem": ("waypoint mem", "xkcd:dark pink"),
+    "istio-proxy CPU": ("istio-proxy CPU", "xkcd:dark pink"),
+    "istio-proxy mem": ("istio-proxy mem", "xkcd:dark pink"),
+
+    "istio P50": ("istio P50", purplish(0.2)),
+    "istio P75": ("istio P75", purplish(0.4)),
+    "istio P90": ("istio P90", purplish(0.6)),
+    "istio P95": ("istio P95", purplish(0.8)),
+    "istio P99": ("istio P99", purplish(1.0)),
 
     "ambient P50": ("ambient P50", reddish(0.2)),
     "ambient P75": ("ambient P75", reddish(0.4)),
@@ -428,7 +443,16 @@ class CorrelatedMetrics:
                                 break
 
                         if not display_color:
-                            display_color = "blue" if mesh == "linkerd" else "red"
+                            if mesh == "linkerd":
+                                display_color = "blue"
+                            elif mesh == "ambient":
+                                display_color = "red"
+                            elif mesh == "istio":
+                                display_color = "purple"
+                            elif mesh == "unmeshed":
+                                display_color = "green"
+                            else:
+                                display_color = "grey"
 
                         series_name = f"{mesh} {fieldname}"
                         if series_name not in series:

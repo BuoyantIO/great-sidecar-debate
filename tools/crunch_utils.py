@@ -10,6 +10,8 @@ def parse_filename(filename, suffix):
         mesh = "ambient"
     elif "linkerd" in dir:
         mesh = "linkerd"
+    elif "istio" in dir:
+        mesh = "istio"
     elif "unmeshed" in dir:
         mesh = "unmeshed"
 
