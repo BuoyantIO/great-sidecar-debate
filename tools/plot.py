@@ -385,7 +385,7 @@ class CorrelatedMetrics:
                         stddev = np.std(dataset)
 
                         # ...and filter out outliers.
-                        filtered_dataset = dataset[np.abs(dataset - mean) <= 2 * stddev]
+                        filtered_dataset = dataset[np.abs(dataset - mean) <= 1 * stddev]
 
                         # print(f"Run {run_id} mesh {mesh} fieldname {fieldname}: {len(native_data)} raw samples")
                         # print(native_data)
