@@ -405,12 +405,15 @@ class CorrelatedMetrics:
     def __str__(self):
         return f"CorrelatedMetrics({self.rpses}, {self.meshes})"
 
-    def plot(self, title, unit, degree, *fields):
+    def plot(self, title, unit, degree, *fields, plotkeys=None):
         """
         Plot the data for a given fieldname. The X axis is RPS, the Y axis is the
         field values, and the different meshes are different series on the plot.
         We'll use a scatter plot and show a regression line for each series.
         """
+
+        if not plotkeys:
+            plotkeys = PlotKeys
 
         # series is a dict of mesh names to pairs of NumPy arrays: one is the X
         # values (RPS) and the other is the Y values (filtered data).}
@@ -438,8 +441,8 @@ class CorrelatedMetrics:
                         display_color = None
 
                         for fk in [ f"{mesh} {fieldname}", fieldname ]:
-                            if fk in PlotKeys:
-                                display_name, display_color = PlotKeys[fk]
+                            if fk in plotkeys:
+                                display_name, display_color = plotkeys[fk]
                                 break
 
                         if not display_color:
@@ -520,6 +523,9 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--interactive", action="store_true", help="Enable interactive mode (default: off)")
     parser.add_argument("-l", "--latency", action="store_true", help="Enable latency plot (default: off)")
     parser.add_argument("-n", "--degree", type=int, default=2, help="Degree of polynomial for regression (default: 2)")
+    parser.add_argument("-f", "--fields", help="Comma-separated list fields to include in the plot (default: two plots of data-plane usage)")
+    parser.add_argument("-t", "--title", help="Title (only when --fields is used)")
+    parser.add_argument("-u", "--unit", help="Unit (only when --fields is used)")
     parser.add_argument("paths", nargs="+", help="Paths to metrics files")
 
     args = parser.parse_args()
@@ -537,17 +543,48 @@ if __name__ == "__main__":
     if metrics_files:
         correlated_metrics = CorrelatedMetrics(metrics_files)
 
-        dp_cpu_fig = correlated_metrics.plot("Data Plane CPU", "mC", args.degree,
-                     "data-plane CPU", "ztunnel mesh CPU", "waypoint mesh CPU")
+        if args.fields:
+            title = args.title if args.title else "Custom Plot"
+            unit = args.unit if args.unit else "unknown"
 
-        if not args.interactive:
-            dp_cpu_fig.savefig(f"data-plane-CPU.png")
+            raw_fields = args.fields.split(",")
 
-        dp_mem_fig = correlated_metrics.plot("Data Plane Memory", "MiB", args.degree,
-                   "data-plane mem", "ztunnel mesh mem", "waypoint mesh mem")
+            fields = []
+            plotkeys = {}
 
-        if not args.interactive:
-            dp_mem_fig.savefig(f"data-plane-mem.png")
+            for field in raw_fields:
+                elements = field.split(":")
+                alpha = None
+
+                if len(elements) > 1:
+                    alpha = float(elements[1])
+
+                    for mesh, color in [
+                        ("linkerd", bluish(alpha) ),
+                        ("ambient", reddish(alpha) ),
+                        ("istio", purplish(alpha)),
+                        ("unmeshed", greenish(alpha)) ]:
+                        key = f"{mesh} {elements[0]}"
+                        plotkeys[key] = (key, color)
+
+                fields.append(elements[0])
+
+            fig = correlated_metrics.plot(title, unit, args.degree, *fields, plotkeys=plotkeys)
+
+            if not args.interactive:
+                fig.savefig(f"custom.png")
+        else:
+            dp_cpu_fig = correlated_metrics.plot("Data Plane CPU", "mC", args.degree,
+                        "data-plane CPU", "ztunnel mesh CPU", "waypoint mesh CPU")
+
+            if not args.interactive:
+                dp_cpu_fig.savefig(f"data-plane-CPU.png")
+
+            dp_mem_fig = correlated_metrics.plot("Data Plane Memory", "MiB", args.degree,
+                    "data-plane mem", "ztunnel mesh mem", "waypoint mesh mem")
+
+            if not args.interactive:
+                dp_mem_fig.savefig(f"data-plane-mem.png")
 
         if args.latency:
             latency_fig = correlated_metrics.plot(
